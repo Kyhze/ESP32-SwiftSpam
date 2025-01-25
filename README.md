@@ -1,10 +1,24 @@
-**- What is this?**
+## What is this?
 
 This will spam Swift Pair BLE beacons to nearby (very close range) Windows devices using an ESP32 device (with Bluetooth support).
 
 The result will be an endless stream of Windows notifications prompting the user that a new device with randomly generated names was found, granted that Bluetooth is turned on and Swift Pair is enabled (which should be the default).
 
-**- Tested on:**
+## Usage: 
+
+```set delay <10-1000>``` from serial console to adjust the spam delay (in ms).
+
+***Note:*** that lower delays do not necessarily translate to more spam.\
+**The default is 130ms**, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
+
+```set name len <0-23>``` from serial console to adjust the name length.\
+Set it to 0 to disable advertising device name.\
+**The default length is 8.**
+
+Set ```bool SDEBUG``` to ```true;``` to enable serial debug output before compiling.\
+I might also make this toggleable at runtime in a future release.
+
+## Tested on:
 - ESP32-WROOM-32
 - Windows 11 Pro 24H2 (build 26100.2605)
 - My ESP32 seems to occasionally crash (most likely caused by OOM/heap exhaustion) after letting it run for an extended amount of time (~10 mins). This results in:
@@ -24,18 +38,14 @@ Backtrace: 0xfffffffd:0x3ffefcf0 0x400d282f:0x3ffefd10 0x400943ae:0x3ffefd30
 ```
 But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the delay/device length, in which case it'll get reset).
 
-Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.
+**Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.**
 
-**- Usage:**
+## Mitigations:
+You have two choices:
+- Disable Swift Pairing in Windows settings
+- Turn off Bluetooth entirely
 
-```set delay <10-1000>``` from serial console to adjust the spam delay (in ms).
-
-Note that lower delays do not necessarily translate to more spam.\
-The default is 130ms, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
-
-```set name len <0-23>``` from serial console to adjust the name length.\
-Set it to 0 to disable advertising device name.\
-The default length is 8.
-
-Set ```bool SDEBUG``` to ```true;``` to enable serial debug output before compiling.\
-I might also make this toggleable at runtime in a future release.
+## Documentation:
+[Swift Pair - Microsoft Learn](https://learn.microsoft.com/en-us/windows-hardware/design/component-guidelines/bluetooth-swift-pair)\
+[Bluetooth Low Energy](https://en.wikipedia.org/wiki/Bluetooth_Low_Energy#Technical_details)\
+[Bluetooth SIG Assigned Numbers / GATT Specifications](https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/) 
