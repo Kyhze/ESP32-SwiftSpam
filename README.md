@@ -24,7 +24,7 @@ Backtrace: 0xfffffffd:0x3ffefcf0 0x400d282f:0x3ffefd10 0x400943ae:0x3ffefd30
 ```
 But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the delay, in which case it'll get reset).
 
-Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 library.
+Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.
 
 **- Usage:**
 
@@ -32,3 +32,10 @@ Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 library.
 
 Note that lower delays do not necessarily translate to more spam.\
 The default is 130ms, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
+
+```set name len <0-23>``` from serial console to adjust the name length.\
+Set it to 0 to disable advertising device name.\
+The default length is 8.
+
+Set ```bool SDEBUG``` to ```true;``` to enable serial debug output before compiling.\
+I might also make this toggleable at runtime in a future release.
