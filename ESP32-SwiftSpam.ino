@@ -1,3 +1,8 @@
+// ESP32-SwiftSpam
+// Author: Kyhze
+// Version: 1.2.0
+// Date: 25/01/2025
+
 #include <NimBLEDevice.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
