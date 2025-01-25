@@ -1,6 +1,6 @@
 ## What is this?
 
-This will spam Swift Pair BLE beacons to nearby (very close range) Windows devices using an ESP32 device (with Bluetooth support).
+This will spam Swift Pair BLE beacons to nearby (very close range) Windows 10/11 devices, using an ESP32 device (with Bluetooth support).
 
 The result will be an endless stream of Windows notifications prompting the user that a new device with randomly generated names was found, granted that Bluetooth is turned on and Swift Pair is enabled (which should be the default).
 
