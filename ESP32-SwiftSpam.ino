@@ -8,17 +8,13 @@
 const char* ver = "1.0.0";
 
 // Function to generate a random device name
-String generateRandomDeviceName() {
+void generateRandomDeviceName(char* name, int nameLength) {
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/()=[]{}@!?.;,:/*$%+\\#<>";
-    const int nameLength = 12; // Length of the random name
-    char name[nameLength + 1];
 
     for (int i = 0; i < nameLength; i++) {
         name[i] = charset[random(sizeof(charset) - 1)];
     }
     name[nameLength] = '\0'; // Null-terminate the string
-
-    return String(name);
 }
 
 // Function to generate a random MAC address
@@ -31,13 +27,13 @@ void generateRandomMac(uint8_t* mac) {
 }
 
 // Function to generate SwiftPair advertisement data
-NimBLEAdvertisementData generateSwiftPairAdvertisementData(const String& deviceName) {
+NimBLEAdvertisementData generateSwiftPairAdvertisementData(const char* deviceName) {
     NimBLEAdvertisementData advertisementData;
 
     // Generate the raw advertisement data
-    uint8_t nameLen = deviceName.length();
+    uint8_t nameLen = strlen(deviceName);
     uint8_t advDataLen = 7 + nameLen; // BLE payload length
-    uint8_t* advDataRaw = new uint8_t[advDataLen];
+    uint8_t advDataRaw[advDataLen];
 
     int i = 0;
     advDataRaw[i++] = advDataLen - 1; // Length of this block
@@ -47,20 +43,15 @@ NimBLEAdvertisementData generateSwiftPairAdvertisementData(const String& deviceN
     advDataRaw[i++] = 0x03;           // Beacon ID (3 = Microsoft-specific ID)
     advDataRaw[i++] = 0x00;           // Flags (0x00) - Microsoft Beacon Sub Scenario
     advDataRaw[i++] = 0x80;           // Flags (0x80) - Reserved RSSI Byte
-    memcpy(&advDataRaw[i], deviceName.c_str(), nameLen); // Copy the device name
-    i += nameLen;
+    memcpy(&advDataRaw[i], deviceName, nameLen); // Copy the device name
 
     // Add the raw advertisement data
     advertisementData.addData(advDataRaw, advDataLen);
-
-    // Clean up
-    delete[] advDataRaw;
 
     return advertisementData;
 }
 
 // Spam delay parameters
-// Usual behavior: Quickest discovery = 30ms ; Normal cadence: 100-152.5ms
 const unsigned short MIN_DELAY = 10;    // Minimum delay in milliseconds
 const unsigned short MAX_DELAY = 1000;  // Maximum delay in milliseconds
 unsigned short currentDelay = 130;      // Default delay in milliseconds
@@ -80,29 +71,30 @@ void setup() {
 void loop() {
     // Check if there is data available on the serial port
     if (Serial.available() > 0) {
-      String input = Serial.readStringUntil('\n'); // Read the incoming data
-      input.trim(); // Remove any extra whitespace or newline characters
+        String input = Serial.readStringUntil('\n'); // Read the incoming data
+        input.trim(); // Remove any extra whitespace or newline characters
 
-      // Check if the input starts with "set delay"
-      if (input.startsWith("set delay ")) {
-        // Extract the delay value from the command
-        String delayValueStr = input.substring(10); // "set delay " is 10 characters long
-        unsigned long newDelay = delayValueStr.toInt(); // Convert to integer
+        // Check if the input starts with "set delay"
+        if (input.startsWith("set delay ")) {
+            // Extract the delay value from the command
+            String delayValueStr = input.substring(10); // "set delay " is 10 characters long
+            unsigned long newDelay = delayValueStr.toInt(); // Convert to integer
 
-        // Validate the new delay value
-        if (newDelay >= MIN_DELAY && newDelay <= MAX_DELAY) {
-          currentDelay = newDelay; // Update the delay value
-          Serial.printf("\n[+] New spam delay set to: %lums\n", currentDelay);
+            // Validate the new delay value
+            if (newDelay >= MIN_DELAY && newDelay <= MAX_DELAY) {
+                currentDelay = newDelay; // Update the delay value
+                Serial.printf("\n[+] New spam delay set to: %lums\n", currentDelay);
+            } else {
+                Serial.println("\n[-] Invalid delay value. Please enter a value between 10 and 1000 (ms).");
+            }
         } else {
-          Serial.println("\n[-] Invalid delay value. Please enter a value between 10 and 1000 (ms).");
+            Serial.println("\n[-] Invalid command. Use 'set delay <10-1000>' to change the delay (ms).");
         }
-      } else {
-        Serial.println("\n[-] Invalid command. Use 'set delay <10-1000>' to change the delay (ms).");
-      }
     }
 
     // Generate a random device name
-    String deviceName = generateRandomDeviceName();
+    char deviceName[13]; // 12 characters + null terminator
+    generateRandomDeviceName(deviceName, 12);
 
     // Generate a random MAC address
     uint8_t mac[6];
@@ -110,19 +102,19 @@ void loop() {
 
     // Initialize BLE
     NimBLEDevice::init("");
-    NimBLEDevice::setPower(9); // Set to max TX power (ranges from -12dbm to 9dbm - Tested on ESP32-WROOM-32)
+    NimBLEDevice::setPower(9); // Set to max TX power
 
     // Set the random MAC address
     NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
     NimBLEDevice::setOwnAddr(mac);
 
     // Create BLE server
-    NimBLEServer *pServer = NimBLEDevice::createServer();
+    NimBLEServer* pServer = NimBLEDevice::createServer();
 
     // Get advertising object
-    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
 
-    // Generate SwiftPair advertisement data with the random device name and appearance
+    // Generate SwiftPair advertisement data with the random device name
     NimBLEAdvertisementData advertisementData = generateSwiftPairAdvertisementData(deviceName);
 
     // Set advertisement data
@@ -134,9 +126,9 @@ void loop() {
     // Wait for set delay (in ms) before sending the next beacon
     delay(currentDelay);
 
-    // Stop advertising to reset for the next beacon
+    // Stop advertising
     pAdvertising->stop();
 
-    // Clean up the server and advertising objects
+    // Clean up BLE resources
     NimBLEDevice::deinit();
 }
