@@ -61,9 +61,9 @@ NimBLEAdvertisementData generateSwiftPairAdvertisementData(const String& deviceN
 
 // Spam delay parameters
 // Usual behavior: Quickest discovery = 30ms ; Normal cadence: 100-152.5ms
-const unsigned long MIN_DELAY = 10;   // Minimum delay in milliseconds
-const unsigned long MAX_DELAY = 1000; // Maximum delay in milliseconds
-unsigned long currentDelay = 30;      // Default delay in milliseconds
+const unsigned short MIN_DELAY = 10;    // Minimum delay in milliseconds
+const unsigned short MAX_DELAY = 1000;  // Maximum delay in milliseconds
+unsigned short currentDelay = 130;      // Default delay in milliseconds
 
 void setup() {
     // Initialize serial console
