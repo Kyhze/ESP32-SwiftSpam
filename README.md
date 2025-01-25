@@ -22,7 +22,7 @@ EXCVADDR: 0x00000000  LBEG    : 0x400910d4  LEND    : 0x400910ea  LCOUNT  : 0xff
 
 Backtrace: 0xfffffffd:0x3ffefcf0 0x400d282f:0x3ffefd10 0x400943ae:0x3ffefd30
 ```
-But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the delay, in which case it'll get reset).
+But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the delay/device length, in which case it'll get reset).
 
 Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.
 
