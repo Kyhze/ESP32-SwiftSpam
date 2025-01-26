@@ -1,6 +1,6 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.4.1
+// Version: 1.4.2
 // Date: 26/01/2025
 
 #include <NimBLEDevice.h>
@@ -15,13 +15,13 @@
 #include <vector>
 #include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.4.1";
+const char* ver = "1.4.2";
 // Flags
 bool advertisingEnabled = true; // Flag to control whether advertising is enabled
 bool SDEBUG = false; // Set to true to enable serial debug info
-bool useCustomName = false;    // Flag to indicate whether to use the custom name (do not set this flag manually)
+bool useCustomName = false; // Flag to indicate whether to use the custom name (do not set this flag manually)
 // Adjustable randomly generated device name length
-uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable random names entirely. Maximum length: 19
+uint8_t DEVICE_NAME_LENGTH = 0; // Maximum length: 19 (do not set this flag manually)
 // Spam delay parameters
 const uint16_t MIN_DELAY = 10;    // Minimum delay in milliseconds
 const uint16_t MAX_DELAY = 1000;  // Maximum delay in milliseconds
@@ -288,8 +288,8 @@ void setup() {
     Serial.printf("\nESP32-SwiftSpam ver.: %s\n", ver);
     Serial.println("\n[>>] Starting ESP32-SwiftSpam...");
     Serial.printf("\n====== PARAMETERS ======\n");
-    Serial.printf("\n[DEFAULT] Spam delay set to: %lums\n", currentDelay);
-    Serial.printf("[DEFAULT] Random device name length set to: %d\n", DEVICE_NAME_LENGTH);
+    Serial.printf("\n[+] Spam delay set to: %lums\n", currentDelay);
+    Serial.printf("[+] Using default Bluetooth device names\n");
     Serial.printf("\n[+] Now advertising Swift Pair beacons\n");
 
     // Set the initial random seed
@@ -337,7 +337,10 @@ void loop() {
             if (newNameLen >= 0 && newNameLen <= 19) { // Enforce strict length requirements
                 DEVICE_NAME_LENGTH = newNameLen; // Update the device name length
                 Serial.printf("\n[+] New device name length set to: %d\n", DEVICE_NAME_LENGTH);
-                if (DEVICE_NAME_LENGTH == 0) {
+                if (DEVICE_NAME_LENGTH > 0) {
+                  Serial.printf("[+] Device name set to randomly generated");
+                }
+                else if (DEVICE_NAME_LENGTH == 0) {
                     Serial.println("\n[+] Device name disabled");
                 }
             } else {
@@ -360,8 +363,17 @@ void loop() {
         }
         // Check if the input is "set name random"
         else if (input.equals("set name random")) {
-            useCustomName = false; // Revert to random names
-            Serial.println("\n[+] Device name set to randomly generated");
+            if (DEVICE_NAME_LENGTH > 0) {
+              useCustomName = false; // Revert to random names
+              Serial.println("\n[+] Device name set to randomly generated");
+            }
+            else if (DEVICE_NAME_LENGTH == 0) {
+              DEVICE_NAME_LENGTH = 8; // Set to default length
+              useCustomName = false; // Revert to random names
+              Serial.println("\n[+] Device name set to randomly generated");
+              Serial.printf("[+] Random device name length set to: %d\n", DEVICE_NAME_LENGTH);
+            }
+            
         }
         // Check if the input is "set verbose"
         else if (input.equals("set verbose")) {
