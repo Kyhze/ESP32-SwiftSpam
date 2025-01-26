@@ -6,19 +6,27 @@ The result will be an endless stream of Windows notifications prompting the user
 
 ## Usage: 
 
-```set delay <10-1000>``` from serial console to adjust the spam delay (in ms).
+The following commands are available from the serial console:
+
+```set delay <10-1000>``` To adjust the spam delay (in ms).
 
 ***Note:*** Lower delays do not necessarily translate to more spam.\
 **The default is ```90ms```**, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
 
-```set name len <0-19>``` from serial console to adjust the name length.\
+```set name len <0-19>``` To adjust the name length.\
 Set it to ```0``` to disable advertising device names.\
 **The default length is ```8```.**
 
-```set name fixed <name>``` from serial console to set a fixed device name.\
-Use ```set name random``` to revert to the randomly generated names.
+```set name fixed <name>``` To set a fixed device name.\
+Use ```set name random``` to revert to randomly generated names.
 
-```set verbose``` from serial console to toggle on/off debugging output.\
+```set verbose``` To toggle on/off debugging output.
+
+```set spam``` To toggle on/off beacon advertising.
+
+```reset``` To reboot the ESP32 device.
+
+```help``` To show all available commands.
 
 ## Tested on:
 - ESP32-WROOM-32 (Arduino IDE set to ESP32 Dev Module)
