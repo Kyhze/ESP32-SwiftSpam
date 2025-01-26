@@ -1,6 +1,6 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.4.0
+// Version: 1.4.1
 // Date: 26/01/2025
 
 #include <NimBLEDevice.h>
@@ -15,8 +15,11 @@
 #include <vector>
 #include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.4.0";
+const char* ver = "1.4.1";
+// Flags
+bool advertisingEnabled = true; // Flag to control whether advertising is enabled
 bool SDEBUG = false; // Set to true to enable serial debug info
+bool useCustomName = false;    // Flag to indicate whether to use the custom name (do not set this flag manually)
 // Adjustable randomly generated device name length
 uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable random names entirely. Maximum length: 19
 // Spam delay parameters
@@ -25,7 +28,6 @@ const uint16_t MAX_DELAY = 1000;  // Maximum delay in milliseconds
 uint16_t currentDelay = 90;       // Default delay in milliseconds
 // Device name parameters
 char customDeviceName[20] = ""; // Buffer to store the custom device name (max 19 chars + null terminator)
-bool useCustomName = false;    // Flag to indicate whether to use the custom name
 
 // Shared variables for inter-task communication
 QueueHandle_t payloadQueue; // Queue to pass payload data between tasks
@@ -226,48 +228,56 @@ void bleTask(void* parameter) {
         // Wait for a payload from the queue
         PayloadData payload;
         if (xQueueReceive(payloadQueue, &payload, portMAX_DELAY) == pdTRUE) {
-            // Initialize BLE
-            NimBLEDevice::init("");
-            NimBLEDevice::setPower(9); // Set to max TX power
+            // Check if advertising is enabled
+            if (advertisingEnabled) {
+                // Initialize BLE
+                NimBLEDevice::init("");
+                NimBLEDevice::setPower(9); // Set to max TX power
 
-            // Set the random MAC address
-            NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
-            NimBLEDevice::setOwnAddr(payload.mac);
+                // Set the random MAC address
+                NimBLEDevice::setOwnAddrType(BLE_OWN_ADDR_RANDOM);
+                NimBLEDevice::setOwnAddr(payload.mac);
 
-            // Create BLE server
-            NimBLEServer* pServer = NimBLEDevice::createServer();
+                // Create BLE server
+                NimBLEServer* pServer = NimBLEDevice::createServer();
 
-            // Get advertising object
-            NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
+                // Get advertising object
+                NimBLEAdvertising* pAdvertising = NimBLEDevice::getAdvertising();
 
-            // Set advertisement data
-            NimBLEAdvertisementData advertisementData;
-            advertisementData.addData(payload.advData, payload.advDataLen);
-            pAdvertising->setAdvertisementData(advertisementData);
+                // Set advertisement data
+                NimBLEAdvertisementData advertisementData;
+                advertisementData.addData(payload.advData, payload.advDataLen);
+                pAdvertising->setAdvertisementData(advertisementData);
 
-            // Start advertising
-            pAdvertising->start();
+                // Start advertising
+                pAdvertising->start();
 
-            // Print debug info
-            if (SDEBUG) {
-                if (payload.hasName) {
-                    Serial.printf("\n[DEBUG] Advertising Swift Pair device: %s\n", payload.deviceName);
-                } else {
-                    Serial.println("\n[DEBUG] Advertising Swift Pair device: DEVICE_NAME_DISABLED");
+                // Print debug info
+                if (SDEBUG) {
+                    if (payload.hasName) {
+                        Serial.printf("\n[DEBUG] Advertising Swift Pair device: %s\n", payload.deviceName);
+                    } else {
+                        Serial.println("\n[DEBUG] Advertising Swift Pair device: DEVICE_NAME_DISABLED");
+                    }
+                    Serial.printf("[DEBUG] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                                  payload.mac[0], payload.mac[1], payload.mac[2],
+                                  payload.mac[3], payload.mac[4], payload.mac[5]);
                 }
-                Serial.printf("[DEBUG] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
-                              payload.mac[0], payload.mac[1], payload.mac[2],
-                              payload.mac[3], payload.mac[4], payload.mac[5]);
+
+                // Wait for the set delay (in ms) before sending the next beacon
+                vTaskDelay(pdMS_TO_TICKS(currentDelay));
+
+                // Stop advertising
+                pAdvertising->stop();
+
+                // Clean up BLE resources
+                NimBLEDevice::deinit();
+            } else {
+                // Advertising is disabled, skip this payload
+                if (SDEBUG) {
+                    Serial.println("\n[DEBUG] Advertising is disabled. Skipping payload");
+                }
             }
-
-            // Wait for the set delay (in ms) before sending the next beacon
-            vTaskDelay(pdMS_TO_TICKS(currentDelay));
-
-            // Stop advertising
-            pAdvertising->stop();
-
-            // Clean up BLE resources
-            NimBLEDevice::deinit();
         }
     }
 }
@@ -277,8 +287,10 @@ void setup() {
     Serial.begin(115200);
     Serial.printf("\nESP32-SwiftSpam ver.: %s\n", ver);
     Serial.println("\n[>>] Starting ESP32-SwiftSpam...");
-    Serial.printf("\n[+] Spam delay set to: %lums\n", currentDelay);
-    Serial.printf("[+] Device name length set to: %d\n", DEVICE_NAME_LENGTH);
+    Serial.printf("\n====== PARAMETERS ======\n");
+    Serial.printf("\n[DEFAULT] Spam delay set to: %lums\n", currentDelay);
+    Serial.printf("[DEFAULT] Random device name length set to: %d\n", DEVICE_NAME_LENGTH);
+    Serial.printf("\n[+] Now advertising Swift Pair beacons\n");
 
     // Set the initial random seed
     randomSeed(analogRead(0));
@@ -360,14 +372,31 @@ void loop() {
                 Serial.printf("\n[+] Verbose debug output disabled\n");
             }
         }
+        // Check if the input is "set spam"
+        else if (input.equals("set spam")) {
+            advertisingEnabled = !advertisingEnabled; // Toggle the advertising flag
+            if (advertisingEnabled) {
+                Serial.println("\n[+] Beacon advertising enabled");
+            } else {
+                Serial.println("\n[+] Beacon advertising disabled");
+            }
+        }
+        // Check if the input is "reset"
+        else if (input.equals("reset")) {
+            Serial.println("\n[+] Resetting ESP32 device...");
+            delay(100);
+            ESP.restart();
+        }
         // Check if the input is "help"
         else if (input.equals("help")) {
-          Serial.printf("\nUse 'set name len <0-19>' to change the device name length. 0 = disable device names");
-          Serial.println("Use 'set delay <10-1000>' to change the spam delay (ms)");
-          Serial.println("Use 'set name fixed <name>' to set a fixed device name");
-          Serial.println("Use 'set name random' to generate random device names");
-          Serial.println("Use 'set verbose' to toggle serial debug output");
-          Serial.println("Use 'help' to display this message again");
+            Serial.printf("\nUse 'set name len <0-19>' to change the device name length. 0 = disable device names\n");
+            Serial.println("Use 'set delay <10-1000>' to change the spam delay (ms)");
+            Serial.println("Use 'set name fixed <name>' to set a fixed device name");
+            Serial.println("Use 'set name random' to generate random device names");
+            Serial.println("Use 'set verbose' to toggle serial debug output");
+            Serial.println("Use 'set spam' to toggle beacon advertising");
+            Serial.println("Use 'reset' to reboot the ESP32 device");
+            Serial.println("Use 'help' to display this message again");
         }
         else {
             Serial.println("\n[-] Invalid command. Use 'help' to show all available commands");
@@ -377,8 +406,8 @@ void loop() {
     // Reset the ESP32 after 5 minutes of runtime
     uint32_t runtime = millis() / 1000; // Convert milliseconds to seconds for convenience
     if (runtime >= 300) {
-      Serial.printf("\n[!] Runtime limit reached. Resetting ESP32...");
-      delay(100);
+        Serial.printf("\n[!] Runtime limit reached. Resetting ESP32...\n");
+        delay(100);
         ESP.restart(); // Reset the ESP32
     }
 
