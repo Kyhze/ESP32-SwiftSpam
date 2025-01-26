@@ -2,16 +2,16 @@
 
 This will spam Swift Pair BLE beacons to nearby (very close range) Windows 10/11 devices, using an ESP32 device (with Bluetooth support).
 
-The result will be an endless stream of Windows notifications prompting the user that a new device with randomly generated names was found, granted that Bluetooth is turned on and Swift Pair is enabled (which should be the default).
+The result will be an endless stream of Windows notifications prompting the user that a new device with a randomly generated name and device class was found, granted that Bluetooth is turned on and Swift Pair is enabled (which should be the default).
 
 ## Usage: 
 
 ```set delay <10-1000>``` from serial console to adjust the spam delay (in ms).
 
 ***Note:*** that lower delays do not necessarily translate to more spam.\
-**The default is 130ms**, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
+**The default is 90ms**, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
 
-```set name len <0-23>``` from serial console to adjust the name length.\
+```set name len <0-19>``` from serial console to adjust the name length.\
 Set it to 0 to disable advertising device name.\
 **The default length is 8.**
 
@@ -36,7 +36,7 @@ EXCVADDR: 0x00000000  LBEG    : 0x400910d4  LEND    : 0x400910ea  LCOUNT  : 0xff
 
 Backtrace: 0xfffffffd:0x3ffefcf0 0x400d282f:0x3ffefd10 0x400943ae:0x3ffefd30
 ```
-But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the delay/device length, in which case it'll get reset).
+But since the device automatically reboots when that happens, it doesn't really disrupt the intended behavior (unless you've manually adjusted the spam delay/device name length, in which case it'll get reset).
 
 **Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.**
 
