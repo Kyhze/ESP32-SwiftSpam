@@ -10,15 +10,18 @@ The following commands are available from the serial console:
 
 ```set delay <10-1000>``` To adjust the spam delay (in ms).
 
-***Note:*** Lower delays do not necessarily translate to more spam.\
-**The default is ```90ms```**, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
+**Note:** Lower delays do not necessarily translate to more spam.
+>*The default is ```90ms```*, which seems to be a relatively sweet spot on my devices, but your mileage may vary.
 
-```set name len <0-19>``` To adjust the name length.\
-Set it to ```0``` to disable advertising device names.\
-**The default length is ```8```.**
+```set name len <0-19>``` To adjust the random device names length.\
+Set it to ```0``` to disable advertising any device names.
+>*The default length is ```8```.*
 
 ```set name fixed <name>``` To set a fixed device name.\
+The maximum length of fixed device names is also limited to 19.\
 Use ```set name random``` to revert to randomly generated names.
+>*The default is to not advertise any device name*
+
 
 ```set verbose``` To toggle on/off debugging output.
 
