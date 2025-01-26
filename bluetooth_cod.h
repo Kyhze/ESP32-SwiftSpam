@@ -33,7 +33,7 @@ const std::map<int, std::string> MajorDeviceClasses = {
 
 // Minor Device Class (nested by Major Device Class)
 const std::map<int, std::map<int, std::string>> MinorDeviceClasses = {
-    {1, {
+    {1, { // Computer
         {1, "Desktop Workstation"},
         {2, "Server-class Computer"},
         {3, "Laptop"},
@@ -42,14 +42,13 @@ const std::map<int, std::map<int, std::string>> MinorDeviceClasses = {
         {6, "Wearable Computer (watch size)"},
         {7, "Tablet"}
     }},
-    {2, {
+    {2, { // Phone
         {1, "Cellular"},
         {2, "Cordless"},
         {3, "Smartphone"},
-        {4, "Wired Modem or Voice Gateway"},
-        {5, "Common ISDN Access"}
+        {4, "Wired Modem or Voice Gateway"}
     }},
-    {4, {
+    {4, { // Audio/Video
         {1, "Wearable Headset Device"},
         {2, "Hands-free Device"},
         {4, "Microphone"},
@@ -58,8 +57,36 @@ const std::map<int, std::map<int, std::string>> MinorDeviceClasses = {
         {7, "Portable Audio"},
         {8, "Car Audio"},
         {9, "Set-top box"},
-        {10, "HiFi Audio Device"}
+        {10, "HiFi Audio Device"},
+        {15, "Video Display and Loudspeaker"}
     }},
+    {5, { // Peripheral
+        {1, "Keyboard"},
+        {2, "Pointing Device"},
+        {3, "Combo Keyboard/Pointing Device"},
+        {4, "Joystick"},
+        {5, "Gamepad"},
+        {6, "Remote Control"}
+    }},
+    {6, { // Imaging
+        {4, "Display"},
+        {5, "Camera"},
+        {6, "Scanner"},
+        {7, "Printer"}
+    }},
+    {7, { // Wearable
+        {1, "Wristwatch"},
+        {5, "Glasses"}
+    }},
+    {9, { // Health
+        {1, "Blood Pressure Monitor"},
+        {2, "Thermometer"},
+        {3, "Weighing Scale"},
+        {4, "Glucose Meter"},
+        {5, "Pulse Oximeter"},
+        {6, "Heart/Pulse Rate Monitor"},
+        {8, "Step Counter"}
+    }}
 };
 
 } // namespace BluetoothCoD
