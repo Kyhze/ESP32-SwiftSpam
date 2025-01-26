@@ -1,6 +1,6 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.3.0
+// Version: 1.3.1
 // Date: 26/01/2025
 
 #include <NimBLEDevice.h>
@@ -15,7 +15,7 @@
 #include <vector>
 #include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.3.0";
+const char* ver = "1.3.1";
 bool SDEBUG = false; // Set to true to enable serial debug info
 // Adjustable device name length
 uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 19
@@ -40,26 +40,36 @@ uint32_t constructClassOfDevice(int majorServiceClass, int majorDeviceClass, int
 }
 
 // Function to randomly select a CoD
-void selectRandomClassOfDevice(int& serviceClass, int& majorClass, int& minorClass) {
-    // Randomly select a Major Service Class
+void selectRandomClasses(int& serviceClass, int& majorClass, int& minorClass) {
+    // Static variable to track the current service class index
+    static size_t currentServiceIndex = 0;
+
+    // Step 1: Define the mapping of Service Classes to their corresponding Major Device Classes
+    const std::map<int, std::vector<int>> serviceToMajorMap = {
+        {0x200000, {4, 5}},       // Audio Service → Audio/Video, Peripheral
+        {0x100000, {1, 5}},       // Networking Service → Computer, Peripheral
+        {0x080000, {4, 6}},       // Rendering Service → Audio/Video, Imaging
+        {0x040000, {4, 5, 6}},    // Capturing Service → Audio/Video, Peripheral, Imaging
+        {0x010000, {2, 4, 5}}     // Telephony Service → Phone, Audio/Video, Peripheral
+    };
+
+    // Step 2: Get the list of service keys
     std::vector<int> serviceKeys;
     for (const auto& entry : BluetoothCoD::MajorServiceClasses) {
         serviceKeys.push_back(entry.first);
     }
-    serviceClass = serviceKeys[random(serviceKeys.size())];
 
-    // Randomly select a Major Device Class
-    std::vector<int> majorKeys;
-    for (const auto& entry : BluetoothCoD::MajorDeviceClasses) {
-        majorKeys.push_back(entry.first);
-    }
+    // Step 3: Select the next service class sequentially (wrap around if necessary)
+    serviceClass = serviceKeys[currentServiceIndex];
+    currentServiceIndex = (currentServiceIndex + 1) % serviceKeys.size();
 
-    // Ensure the selected Major Device Class has at least one Minor Device Class
-    do {
-        majorClass = majorKeys[random(majorKeys.size())];
-    } while (!BluetoothCoD::MinorDeviceClasses.count(majorClass));
+    // Step 4: Get the reduced pool of Major Device Classes for the selected Service Class
+    const auto& relevantMajorKeys = serviceToMajorMap.at(serviceClass);
 
-    // Randomly select a Minor Device Class for the selected Major Device Class
+    // Step 5: Randomly select a Major Device Class from the reduced pool
+    majorClass = relevantMajorKeys[random(relevantMajorKeys.size())];
+
+    // Step 6: Randomly select a Minor Device Class for the selected Major Device Class
     const auto& minorMap = BluetoothCoD::MinorDeviceClasses.at(majorClass);
     std::vector<int> minorKeys;
     for (const auto& entry : minorMap) {
@@ -106,7 +116,7 @@ void generateSwiftPairAdvertisementData(const char* deviceName, uint8_t* advData
 
     // Randomly select a CoD
     int serviceClass, majorClass, minorClass;
-    selectRandomClassOfDevice(serviceClass, majorClass, minorClass);
+    selectRandomClasses(serviceClass, majorClass, minorClass);
     uint32_t cod = constructClassOfDevice(serviceClass, majorClass, minorClass);
 
     // Add Manufacturer Specific Data - Including CoD
