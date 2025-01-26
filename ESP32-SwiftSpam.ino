@@ -1,6 +1,6 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.3.1
+// Version: 1.4.0
 // Date: 26/01/2025
 
 #include <NimBLEDevice.h>
@@ -15,19 +15,22 @@
 #include <vector>
 #include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.3.1";
+const char* ver = "1.4.0";
 bool SDEBUG = false; // Set to true to enable serial debug info
-// Adjustable device name length
-uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 19
+// Adjustable randomly generated device name length
+uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable random names entirely. Maximum length: 19
 // Spam delay parameters
 const uint16_t MIN_DELAY = 10;    // Minimum delay in milliseconds
 const uint16_t MAX_DELAY = 1000;  // Maximum delay in milliseconds
 uint16_t currentDelay = 90;       // Default delay in milliseconds
+// Device name parameters
+char customDeviceName[20] = ""; // Buffer to store the custom device name (max 19 chars + null terminator)
+bool useCustomName = false;    // Flag to indicate whether to use the custom name
 
 // Shared variables for inter-task communication
 QueueHandle_t payloadQueue; // Queue to pass payload data between tasks
 struct PayloadData {
-    char* deviceName;    // Dynamically allocated device name buffer
+    char deviceName[20]; // Fixed-size buffer for device name (max 19 chars + null terminator)
     uint8_t mac[6];      // Random MAC address
     uint8_t advData[31]; // Advertisement data
     uint8_t advDataLen;  // Length of advertisement data
@@ -106,7 +109,16 @@ void generateRandomMac(uint8_t* mac) {
 
 // Function to generate SwiftPair advertisement data
 void generateSwiftPairAdvertisementData(const char* deviceName, uint8_t* advData, uint8_t* advDataLen, bool hasName) {
-    uint8_t nameLen = hasName ? strlen(deviceName) : 0;
+    uint8_t nameLen = 0;
+    if (hasName) {
+        if (useCustomName) {
+            // Use the length of the custom name
+            nameLen = strlen(deviceName);
+        } else {
+            // Use the length of the random name (controlled by DEVICE_NAME_LENGTH)
+            nameLen = DEVICE_NAME_LENGTH;
+        }
+    }
 
     // Maximum payload size is 31 bytes
     const uint8_t maxPayloadSize = 31;
@@ -171,23 +183,32 @@ void generateDataTask(void* parameter) {
         // Prepare SwiftPair advertisement data
         uint8_t advData[31];
         uint8_t advDataLen;
-        bool hasName = (DEVICE_NAME_LENGTH > 0);
-
-        char* deviceName = (char*)malloc(DEVICE_NAME_LENGTH + 1); // Dynamically allocate device name buffer
-        if (hasName) {
-            generateRandomDeviceName(deviceName, DEVICE_NAME_LENGTH);
-        }
-
-        // Generate SwiftPair advertisement data
-        generateSwiftPairAdvertisementData(deviceName, advData, &advDataLen, hasName);
+        bool hasName = (DEVICE_NAME_LENGTH > 0 || useCustomName); // Check if either random or custom name is enabled
 
         // Create a payload struct
         PayloadData payload;
-        payload.deviceName = deviceName; // Assign the dynamically allocated buffer
+        payload.hasName = hasName;
+
+        if (hasName) {
+            if (useCustomName) {
+                // Use the custom device name
+                strncpy(payload.deviceName, customDeviceName, 19);
+                payload.deviceName[19] = '\0'; // Ensure null-termination
+            } else {
+                // Generate a random device name
+                generateRandomDeviceName(payload.deviceName, DEVICE_NAME_LENGTH);
+            }
+        } else {
+            payload.deviceName[0] = '\0'; // Empty name if disabled
+        }
+
+        // Generate SwiftPair advertisement data
+        generateSwiftPairAdvertisementData(payload.deviceName, advData, &advDataLen, hasName);
+
+        // Copy the advertisement data and MAC address to the payload
         memcpy(payload.mac, mac, 6);
         memcpy(payload.advData, advData, 31);
         payload.advDataLen = advDataLen;
-        payload.hasName = hasName;
 
         // Send the payload to the BLE task
         if (xQueueSend(payloadQueue, &payload, portMAX_DELAY) != pdTRUE) {
@@ -247,11 +268,6 @@ void bleTask(void* parameter) {
 
             // Clean up BLE resources
             NimBLEDevice::deinit();
-
-            // Free the dynamically allocated device name buffer
-            if (payload.hasName) {
-                free(payload.deviceName);
-            }
         }
     }
 }
@@ -261,8 +277,6 @@ void setup() {
     Serial.begin(115200);
     Serial.printf("\nESP32-SwiftSpam ver.: %s\n", ver);
     Serial.println("\n[>>] Starting ESP32-SwiftSpam...");
-    Serial.println("Use 'set delay <10-1000>' to change the delay (ms)");
-    Serial.println("Use 'set name len <0-19>' to change the device name length");
     Serial.printf("\n[+] Spam delay set to: %lums\n", currentDelay);
     Serial.printf("[+] Device name length set to: %d\n", DEVICE_NAME_LENGTH);
 
@@ -317,9 +331,55 @@ void loop() {
             } else {
                 Serial.println("\n[-] Invalid name length. Please enter a value between 0 and 19");
             }
-        } else {
-            Serial.println("\n[-] Invalid command. Use 'set delay <10-1000>' or 'set name len <0-19>'");
         }
+        // Check if the input starts with "set name fixed"
+        else if (input.startsWith("set name fixed ")) {
+            // Extract the custom name from the command
+            String newName = input.substring(15); // "set name fixed " is 15 characters long
+
+            // Validate the custom name length
+            if (newName.length() >= 1 && newName.length() <= 19) {
+                newName.toCharArray(customDeviceName, 20); // Copy the custom name to the buffer
+                useCustomName = true; // Enable the use of the custom name
+                Serial.printf("\n[+] Device name set to: %s\n", customDeviceName);
+            } else {
+                Serial.println("\n[-] Invalid name length. Please enter a name between 1 and 19 characters");
+            }
+        }
+        // Check if the input is "set name random"
+        else if (input.equals("set name random")) {
+            useCustomName = false; // Revert to random names
+            Serial.println("\n[+] Device name set to randomly generated");
+        }
+        // Check if the input is "set verbose"
+        else if (input.equals("set verbose")) {
+            SDEBUG = !SDEBUG; // Toggle the SDEBUG flag
+            if (SDEBUG) {
+                Serial.printf("\n[+] Verbose debug output enabled\n");
+            } else {
+                Serial.printf("\n[+] Verbose debug output disabled\n");
+            }
+        }
+        // Check if the input is "help"
+        else if (input.equals("help")) {
+          Serial.printf("\nUse 'set name len <0-19>' to change the device name length. 0 = disable device names");
+          Serial.println("Use 'set delay <10-1000>' to change the spam delay (ms)");
+          Serial.println("Use 'set name fixed <name>' to set a fixed device name");
+          Serial.println("Use 'set name random' to generate random device names");
+          Serial.println("Use 'set verbose' to toggle serial debug output");
+          Serial.println("Use 'help' to display this message again");
+        }
+        else {
+            Serial.println("\n[-] Invalid command. Use 'help' to show all available commands");
+        }
+    }
+
+    // Reset the ESP32 after 5 minutes of runtime
+    uint32_t runtime = millis() / 1000; // Convert milliseconds to seconds for convenience
+    if (runtime >= 300) {
+      Serial.printf("\n[!] Runtime limit reached. Resetting ESP32...");
+      delay(100);
+        ESP.restart(); // Reset the ESP32
     }
 
     // FreeRTOS scheduler will handle the tasks
