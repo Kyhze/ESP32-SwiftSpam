@@ -11,7 +11,7 @@
 const char* ver = "1.2.0";
 bool SDEBUG = false; // Set to true to enable serial debug info
 // Ajdustable device name length
-int DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 23
+uint8_t DEVICE_NAME_LENGTH = 8; // Set to 0 to disable names entirely. Maximum length: 23
 // Spam delay parameters
 const unsigned short MIN_DELAY = 10;    // Minimum delay in milliseconds
 const unsigned short MAX_DELAY = 1000;  // Maximum delay in milliseconds
