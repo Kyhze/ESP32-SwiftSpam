@@ -22,7 +22,12 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
 
-      - name: Compile ESP32 Sketch
+      - name: Install required libraries
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "NimBLE-Arduino"
+          
+      - name: Compile ESP32 sketch
         run: |
           mkdir -p build
           arduino-cli compile --fqbn esp32:esp32:esp32 --build-path build ESP32-SwiftSpam.ino
