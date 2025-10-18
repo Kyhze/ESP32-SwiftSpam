@@ -30,7 +30,7 @@ jobs:
           arduino-cli compile --fqbn esp32:esp32:esp32dev --build-path build ESP32-SwiftSpam.ino
 
       - name: Upload merged binary artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ESP32-SwiftSpam.bin
           path: build/ESP32-SwiftSpam.ino.merged.bin
