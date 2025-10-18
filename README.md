@@ -43,7 +43,7 @@ Feel free to experiment.
 
 PRs are always welcome.
 
-**Compiled on Arduino IDE 2.3.4 with NimBLE-Arduino 2.2.0 and FreeRTOS libraries.**
+- Pre-compiled artifacts are available [here](https://github.com/Kyhze/ESP32-SwiftSpam/actions/workflows/build.yml)
 
 ## Mitigations:
 You have two choices:
