@@ -25,7 +25,7 @@ jobs:
       - name: Compile ESP32 Sketch
         run: |
           mkdir -p build
-          arduino-cli compile --fqbn esp32:esp32:esp32dev --build-path build ESP32-SwiftSpam.ino
+          arduino-cli compile --fqbn esp32:esp32:esp32 --build-path build ESP32-SwiftSpam.ino
 
       - name: Upload merged binary artifact
         uses: actions/upload-artifact@v4
