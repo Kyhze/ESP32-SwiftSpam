@@ -21,7 +21,7 @@ $$
 TotalDelay = BS + RD + SD
 $$
 
-Exemple for the default 90ms: 
+Example for the default 90ms: 
 
 $$
 TotalDelay = 190 + 40 + 90  
