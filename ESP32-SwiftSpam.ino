@@ -1,7 +1,7 @@
 // ESP32-SwiftSpam
 // Author: Kyhze
-// Version: 1.4.2
-// Date: 26/01/2025
+// Version: 1.4.3
+// Date: 19/10/2025
 
 #include <NimBLEDevice.h>
 #include <freertos/FreeRTOS.h>
@@ -15,7 +15,7 @@
 #include <vector>
 #include "bluetooth_cod.h" // Bluetooth Class of Device mappings
 
-const char* ver = "1.4.2";
+const char* ver = "1.4.3";
 // Flags
 bool advertisingEnabled = true; // Flag to control whether advertising is enabled
 bool SDEBUG = false; // Set to true to enable serial debug info
@@ -167,7 +167,7 @@ void generateSwiftPairAdvertisementData(const char* deviceName, uint8_t* advData
     // Debugging output
     if (SDEBUG) {
         Serial.printf("[DEBUG] Advertisement Data Length: %d bytes\n", *advDataLen);
-        Serial.print("[DEBUG] Advertisement Data: ");
+        Serial.printf("[DEBUG] Advertisement Data: ");
         for (int j = 0; j < *advDataLen; j++) {
             Serial.printf("%02X ", advData[j]);
         }
@@ -257,9 +257,9 @@ void bleTask(void* parameter) {
                     if (payload.hasName) {
                         Serial.printf("\n[DEBUG] Advertising Swift Pair device: %s\n", payload.deviceName);
                     } else {
-                        Serial.println("\n[DEBUG] Advertising Swift Pair device: DEVICE_NAME_DISABLED");
+                        Serial.printf("\n[DEBUG] Advertising Swift Pair device: DEVICE_NAME_DISABLED");
                     }
-                    Serial.printf("[DEBUG] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                    Serial.printf("\n[DEBUG] Using random source MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
                                   payload.mac[0], payload.mac[1], payload.mac[2],
                                   payload.mac[3], payload.mac[4], payload.mac[5]);
                 }
@@ -275,7 +275,7 @@ void bleTask(void* parameter) {
             } else {
                 // Advertising is disabled, skip this payload
                 if (SDEBUG) {
-                    Serial.println("\n[DEBUG] Advertising is disabled. Skipping payload");
+                    Serial.printf("\n[DEBUG] Advertising is disabled. Skipping payload\n");
                 }
             }
         }
@@ -286,8 +286,8 @@ void setup() {
     // Initialize serial console
     Serial.begin(115200);
     Serial.printf("\nESP32-SwiftSpam ver.: %s\n", ver);
-    Serial.println("\n[>>] Starting ESP32-SwiftSpam...");
-    Serial.printf("\n====== PARAMETERS ======\n");
+    Serial.printf("\n[>>] Starting ESP32-SwiftSpam...\n");
+    Serial.printf("\n====== PARAMETERS ======");
     Serial.printf("\n[+] Spam delay set to: %lums\n", currentDelay);
     Serial.printf("[+] Using default Bluetooth device names\n");
     Serial.printf("\n[+] Now advertising Swift Pair beacons\n");
@@ -298,7 +298,7 @@ void setup() {
     // Create a queue to pass payload data between tasks
     payloadQueue = xQueueCreate(10, sizeof(PayloadData));
     if (payloadQueue == NULL) {
-        Serial.println("\n[-] FATAL: Failed to create queue");
+        Serial.printf("\n[-] FATAL: Failed to create queue");
         while (1); // Halt if the queue cannot be created
     }
 
@@ -324,29 +324,33 @@ void loop() {
                 currentDelay = newDelay; // Update the delay value
                 Serial.printf("\n[+] New spam delay set to: %lums\n", currentDelay);
             } else {
-                Serial.println("\n[-] Invalid delay value. Please enter a value between 10 and 1000 (ms)");
+                Serial.printf("\n[-] Invalid delay value. Please enter a value between 10 and 1000 (ms)\n");
             }
         }
         // Check if the input starts with "set name len"
         else if (input.startsWith("set name len ")) {
             // Extract the name length value from the command
             String nameLenStr = input.substring(13); // "set name len " is 13 characters long
-            uint8_t newNameLen = nameLenStr.toInt(); // Convert to integer
+            nameLenStr.trim(); // Remove any extra whitespace or newline characters
+            int newNameLen = nameLenStr.toInt(); // Convert to integer
 
             // Validate the new name length value
-            if (newNameLen >= 0 && newNameLen <= 19) { // Enforce strict length requirements
-                DEVICE_NAME_LENGTH = newNameLen; // Update the device name length
+            if (nameLenStr.length() == 0 || (newNameLen == 0 && nameLenStr != "0") || newNameLen < 0 || newNameLen > 19) {
+                Serial.printf("\n[-] Invalid name length. Please enter a numeric value between 0 and 19\n");
+            } else {
+                DEVICE_NAME_LENGTH = (uint8_t)newNameLen; // Update the device name length
                 Serial.printf("\n[+] New device name length set to: %d\n", DEVICE_NAME_LENGTH);
                 if (DEVICE_NAME_LENGTH > 0) {
-                  Serial.printf("[+] Device name set to randomly generated");
+                    Serial.println("[+] Device name set to randomly generated");
                 }
                 else if (DEVICE_NAME_LENGTH == 0) {
-                    Serial.println("\n[+] Device name disabled");
+                    useCustomName = false; // Revert to random names
+                    memset(customDeviceName, 0, sizeof(customDeviceName)); // Clear customDeviceName buffer
+                    Serial.printf("[+] Device name disabled\n");
                 }
-            } else {
-                Serial.println("\n[-] Invalid name length. Please enter a value between 0 and 19");
             }
         }
+
         // Check if the input starts with "set name fixed"
         else if (input.startsWith("set name fixed ")) {
             // Extract the custom name from the command
@@ -358,19 +362,19 @@ void loop() {
                 useCustomName = true; // Enable the use of the custom name
                 Serial.printf("\n[+] Device name set to: %s\n", customDeviceName);
             } else {
-                Serial.println("\n[-] Invalid name length. Please enter a name between 1 and 19 characters");
+                Serial.printf("\n[-] Invalid name length. Please enter a name between 1 and 19 characters\n");
             }
         }
         // Check if the input is "set name random"
         else if (input.equals("set name random")) {
             if (DEVICE_NAME_LENGTH > 0) {
               useCustomName = false; // Revert to random names
-              Serial.println("\n[+] Device name set to randomly generated");
+              Serial.printf("\n[+] Device name set to randomly generated");
             }
             else if (DEVICE_NAME_LENGTH == 0) {
               DEVICE_NAME_LENGTH = 8; // Set to default length
               useCustomName = false; // Revert to random names
-              Serial.println("\n[+] Device name set to randomly generated");
+              Serial.printf("\n[+] Device name set to randomly generated\n");
               Serial.printf("[+] Random device name length set to: %d\n", DEVICE_NAME_LENGTH);
             }
             
@@ -388,19 +392,20 @@ void loop() {
         else if (input.equals("set spam")) {
             advertisingEnabled = !advertisingEnabled; // Toggle the advertising flag
             if (advertisingEnabled) {
-                Serial.println("\n[+] Beacon advertising enabled");
+                Serial.printf("\n[+] Beacon advertising enabled\n");
             } else {
-                Serial.println("\n[+] Beacon advertising disabled");
+                Serial.printf("\n[+] Beacon advertising disabled\n");
             }
         }
         // Check if the input is "reset"
         else if (input.equals("reset")) {
-            Serial.println("\n[+] Resetting ESP32 device...");
+            Serial.printf("\n[+] Resetting ESP32 device...");
             delay(100);
             ESP.restart();
         }
         // Check if the input is "help"
-        else if (input.equals("help")) {
+        else if (input.equals("help") || (input.equals("?"))) {
+            Serial.printf("\n====== HELP MENU ======");
             Serial.printf("\nUse 'set name len <0-19>' to change the device name length. 0 = disable device names\n");
             Serial.println("Use 'set delay <10-1000>' to change the spam delay (ms)");
             Serial.println("Use 'set name fixed <name>' to set a fixed device name");
@@ -408,10 +413,10 @@ void loop() {
             Serial.println("Use 'set verbose' to toggle serial debug output");
             Serial.println("Use 'set spam' to toggle beacon advertising");
             Serial.println("Use 'reset' to reboot the ESP32 device");
-            Serial.println("Use 'help' to display this message again");
+            Serial.println("Use 'help' or '?' to display this message again");
         }
         else {
-            Serial.println("\n[-] Invalid command. Use 'help' to show all available commands");
+            Serial.printf("\n[-] Invalid command. Use 'help' or '?' to show all available commands\n");
         }
     }
 
